@@ -20,6 +20,7 @@ build
 # misc
 .DS_Store
 *.pem
+*.tgz
 dist
 
 # debug
@@ -35,7 +36,8 @@ yarn-error.log*
 
 # turbo
 .turbo
-PROJECT.md
+docs/PROJECT.md
 apps/web/tsconfig.tsbuildinfo
 .superset/
 .playwright-mcp
+apps/site/.source/

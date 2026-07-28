@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useT } from "@/lib/i18n"
+import { appendPdfMarkdown } from "@/lib/pdf-extract"
 import { cn } from "@/lib/utils"
 
 const ACCEPT_TYPES = [
@@ -64,6 +66,7 @@ function formatFileSize(bytes: number) {
 }
 
 export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogProps) {
+  const t = useT()
   const dialogContentId = "ingest-dialog-content"
   const dialogTitleId = "ingest-dialog-title"
   const dialogDescriptionId = "ingest-dialog-description"
@@ -106,13 +109,13 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
 
       if (!res.ok || data.status === "failed") {
         setState("error")
-        setError(data.error || "导入失败")
-        toast.error(data.error || "导入失败")
+        setError(data.error || t.ingestDialog.importFailed)
+        toast.error(data.error || t.ingestDialog.importFailed)
         return
       }
 
       setState("success")
-      toast.success(`已导入: ${data.title}`)
+      toast.success(t.ingestDialog.imported.replace("{title}", data.title))
       onSuccess?.()
       setTimeout(() => {
         setOpen(false)
@@ -120,10 +123,10 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
       }, 1500)
     } catch {
       setState("error")
-      setError("网络错误")
-      toast.error("网络错误")
+      setError(t.ingestDialog.networkError)
+      toast.error(t.ingestDialog.networkError)
     }
-  }, [url, folderId, title, onSuccess, reset])
+  }, [url, folderId, title, onSuccess, reset, t])
 
   const handleFileSubmit = useCallback(async () => {
     if (!selectedFile) {
@@ -142,6 +145,8 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
       if (title.trim()) {
         formData.append("title", title.trim())
       }
+      // PDF 在浏览器端解析文本后随表单上传（服务端无法解析 PDF）
+      await appendPdfMarkdown(formData, selectedFile)
 
       const res = await fetch("/api/ingest", {
         method: "POST",
@@ -151,13 +156,13 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
 
       if (!res.ok || data.status === "failed") {
         setState("error")
-        setError(data.error || "导入失败")
-        toast.error(data.error || "导入失败")
+        setError(data.error || t.ingestDialog.importFailed)
+        toast.error(data.error || t.ingestDialog.importFailed)
         return
       }
 
       setState("success")
-      toast.success(`已导入: ${data.title}`)
+      toast.success(t.ingestDialog.imported.replace("{title}", data.title))
       onSuccess?.()
       setTimeout(() => {
         setOpen(false)
@@ -165,10 +170,10 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
       }, 1500)
     } catch {
       setState("error")
-      setError("网络错误")
-      toast.error("网络错误")
+      setError(t.ingestDialog.networkError)
+      toast.error(t.ingestDialog.networkError)
     }
-  }, [selectedFile, folderId, title, onSuccess, reset])
+  }, [selectedFile, folderId, title, onSuccess, reset, t])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -194,7 +199,7 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
         {trigger || (
           <Button size="sm" variant="outline">
             <Upload className="mr-2 size-4" />
-            导入
+            {t.ingestDialog.trigger}
           </Button>
         )}
       </DialogTrigger>
@@ -205,9 +210,9 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
         id={dialogContentId}
       >
         <DialogHeader>
-          <DialogTitle id={dialogTitleId}>导入内容</DialogTitle>
+          <DialogTitle id={dialogTitleId}>{t.ingestDialog.title}</DialogTitle>
           <DialogDescription id={dialogDescriptionId}>
-            粘贴链接或上传文件，自动转换为 Markdown 并存入知识库
+            {t.ingestDialog.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -215,17 +220,17 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger disabled={isProcessing} value="url">
               <Globe className="mr-2 size-4" />
-              链接
+              {t.ingestDialog.tabUrl}
             </TabsTrigger>
             <TabsTrigger disabled={isProcessing} value="file">
               <FileUp className="mr-2 size-4" />
-              文件
+              {t.ingestDialog.tabFile}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent className="mt-4 space-y-4" value="url">
             <div className="space-y-2">
-              <Label htmlFor="url">网页链接</Label>
+              <Label htmlFor="url">{t.ingestDialog.urlLabel}</Label>
               <Input
                 disabled={isProcessing}
                 id="url"
@@ -244,12 +249,12 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
             />
 
             <div className="space-y-2">
-              <Label htmlFor="title-url">标题（可选）</Label>
+              <Label htmlFor="title-url">{t.ingestDialog.titleLabel}</Label>
               <Input
                 disabled={isProcessing}
                 id="title-url"
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="自动提取"
+                placeholder={t.ingestDialog.titlePlaceholder}
                 value={title}
               />
             </div>
@@ -262,7 +267,7 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
               onClick={handleUrlSubmit}
             >
               {isProcessing && <Loader2 className="mr-2 size-4 animate-spin" />}
-              {isProcessing ? "正在导入..." : "导入链接"}
+              {isProcessing ? t.ingestDialog.importing : t.ingestDialog.importUrl}
             </Button>
           </TabsContent>
 
@@ -306,9 +311,9 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
               ) : (
                 <>
                   <Upload className="size-8 text-muted-foreground/50" />
-                  <p className="text-muted-foreground text-sm">点击或拖拽文件到此处</p>
+                  <p className="text-muted-foreground text-sm">{t.ingestDialog.dropzoneTitle}</p>
                   <p className="text-muted-foreground/60 text-xs">
-                    支持 PDF、Word、Excel、图片、音频等
+                    {t.ingestDialog.dropzoneDescription}
                   </p>
                 </>
               )}
@@ -322,12 +327,12 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
             />
 
             <div className="space-y-2">
-              <Label htmlFor="title-file">标题（可选）</Label>
+              <Label htmlFor="title-file">{t.ingestDialog.titleLabel}</Label>
               <Input
                 disabled={isProcessing}
                 id="title-file"
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="自动提取"
+                placeholder={t.ingestDialog.titlePlaceholder}
                 value={title}
               />
             </div>
@@ -340,7 +345,7 @@ export function IngestDialog({ folders = [], onSuccess, trigger }: IngestDialogP
               onClick={handleFileSubmit}
             >
               {isProcessing && <Loader2 className="mr-2 size-4 animate-spin" />}
-              {isProcessing ? "正在处理..." : "上传并导入"}
+              {isProcessing ? t.ingestDialog.processing : t.ingestDialog.uploadAndImport}
             </Button>
           </TabsContent>
         </Tabs>
@@ -360,16 +365,17 @@ function FolderSelect({
   onFolderChange: (v: string) => void
   disabled: boolean
 }) {
+  const t = useT()
   if (folders.length === 0) {
     return null
   }
 
   return (
     <div className="space-y-2">
-      <Label>文件夹（可选）</Label>
+      <Label>{t.ingestDialog.folderLabel}</Label>
       <Select disabled={disabled} onValueChange={onFolderChange} value={folderId}>
         <SelectTrigger>
-          <SelectValue placeholder="选择文件夹" />
+          <SelectValue placeholder={t.ingestDialog.folderPlaceholder} />
         </SelectTrigger>
         <SelectContent>
           {folders.map((f) => (
@@ -384,11 +390,12 @@ function FolderSelect({
 }
 
 function StatusIndicator({ state, error }: { state: IngestState; error: string | null }) {
+  const t = useT()
   if (state === "success") {
     return (
       <div className="flex items-center gap-2 text-green-600 text-sm">
         <CheckCircle2 className="size-4" />
-        导入成功
+        {t.ingestDialog.success}
       </div>
     )
   }

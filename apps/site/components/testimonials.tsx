@@ -2,47 +2,99 @@
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { InfiniteSlider } from "@/components/ui/infinite-slider"
 import { useSiteI18n } from "@/lib/site-i18n"
+import { cn } from "@/lib/utils"
 
 export default function Testimonials() {
   const { t } = useSiteI18n()
   const items = t.testimonials.items
+  const topRow = [items[0], items[1], items[2]]
+  const bottomRow = [items[3], items[1], items[0]]
 
   return (
     <section className="py-16 md:py-32">
-      <div className="mx-auto max-w-6xl space-y-8 px-6 md:space-y-16">
-        <div className="relative z-10 mx-auto max-w-xl space-y-6 text-center md:space-y-12">
-          <h2 className="text-4xl font-medium lg:text-5xl">{t.testimonials.title}</h2>
-          <p>{t.testimonials.subtitle}</p>
+      <div className="mx-auto max-w-7xl space-y-8 px-6 md:space-y-12">
+        <div className="relative z-10 mx-auto max-w-2xl space-y-5 text-center">
+          <h2 className="text-balance text-4xl font-medium tracking-tight lg:text-5xl">
+            {t.testimonials.title}
+          </h2>
+          <p className="text-muted-foreground">{t.testimonials.subtitle}</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-rows-2">
-          <Card className="grid grid-rows-[auto_1fr] gap-8 sm:col-span-2 sm:p-6 lg:row-span-2">
-            <CardHeader>
-              <p className="text-sm font-medium text-muted-foreground">MindPocket</p>
-            </CardHeader>
-            <CardContent>
-              <blockquote className="grid h-full grid-rows-[1fr_auto] gap-6">
-                <p className="text-xl font-medium">{items[0].text}</p>
-                <Author name={items[0].name} role={items[0].role} />
-              </blockquote>
-            </CardContent>
-          </Card>
+        <div className="relative space-y-4">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-background to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-background to-transparent"
+          />
 
-          <TestimonialCard name={items[1].name} role={items[1].role} text={items[1].text} />
-          <TestimonialCard name={items[2].name} role={items[2].role} text={items[2].text} />
-          <TestimonialCard name={items[3].name} role={items[3].role} text={items[3].text} />
+          <InfiniteSlider className="py-2" gap={20} speed={26} speedOnHover={14}>
+            {topRow.map((item) => (
+              <TestimonialCard
+                isFeatured={item.name === items[0].name}
+                key={`top-${item.name}`}
+                name={item.name}
+                role={item.role}
+                text={item.text}
+              />
+            ))}
+          </InfiniteSlider>
+
+          <InfiniteSlider className="py-2" gap={20} reverse speed={24} speedOnHover={12}>
+            {bottomRow.map((item) => (
+              <TestimonialCard
+                key={`bottom-${item.name}`}
+                name={item.name}
+                role={item.role}
+                text={item.text}
+              />
+            ))}
+          </InfiniteSlider>
         </div>
       </div>
     </section>
   )
 }
 
-function TestimonialCard({ text, name, role }: { text: string; name: string; role: string }) {
+function TestimonialCard({
+  text,
+  name,
+  role,
+  isFeatured = false,
+}: {
+  text: string
+  name: string
+  role: string
+  isFeatured?: boolean
+}) {
   return (
-    <Card>
-      <CardContent className="grid h-full grid-rows-[1fr_auto] gap-6 pt-6">
-        <p>{text}</p>
+    <Card
+      className={cn(
+        "w-[20rem] shrink-0 rounded-[1.75rem] border-black/8 bg-white/92 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.45)] backdrop-blur-sm md:w-[22rem]",
+        isFeatured && "md:w-[28rem]"
+      )}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm font-medium text-muted-foreground">MindPocket</p>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{role}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="grid min-h-52 grid-rows-[1fr_auto] gap-6 pt-0">
+        <blockquote>
+          <p
+            className={cn(
+              "text-base leading-8 text-slate-800",
+              isFeatured && "text-xl font-medium"
+            )}
+          >
+            {text}
+          </p>
+        </blockquote>
         <Author name={name} role={role} />
       </CardContent>
     </Card>
@@ -59,11 +111,11 @@ function Author({ name, role }: { name: string; role: string }) {
 
   return (
     <div className="grid grid-cols-[auto_1fr] items-center gap-3">
-      <Avatar className="size-12">
-        <AvatarFallback>{initials}</AvatarFallback>
+      <Avatar className="size-12 border border-sky-100 bg-sky-50">
+        <AvatarFallback className="bg-sky-50 text-sky-700">{initials}</AvatarFallback>
       </Avatar>
       <div>
-        <cite className="text-sm font-medium">{name}</cite>
+        <cite className="text-sm font-medium not-italic text-slate-900">{name}</cite>
         <span className="text-muted-foreground block text-sm">{role}</span>
       </div>
     </div>

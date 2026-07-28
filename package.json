@@ -3,16 +3,33 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "test": "pnpm --filter web test",
+    "test:watch": "pnpm --filter web test:watch",
+    "test:coverage": "pnpm --filter web test:coverage",
+    "test:e2e": "pnpm --filter web test:e2e",
+    "test:web": "pnpm --filter web test",
+    "test:web:e2e": "pnpm --filter web test:e2e",
+    "deploy:cf": "pnpm --filter @repo/types build && pnpm --filter web build && pnpm --filter api deploy",
+    "cli:build": "pnpm --filter mindpocket build",
+    "cli:pack": "cd apps/cli && npm pack --dry-run",
+    "cli:publish:dry-run": "cd apps/cli && npm publish --dry-run",
     "clean": "turbo run clean && rm -rf node_modules",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "ultracite check",
-    "fix": "ultracite fix"
+    "fix": "ultracite fix",
+    "prepare": "husky",
+    "lint-staged": "lint-staged"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "turbo": "^2.8.2",
     "ultracite": "7.1.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css}": "biome check --write"
   },
   "engines": {
     "node": ">=18"

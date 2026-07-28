@@ -30,11 +30,12 @@ MindPocket 将你的收藏内容进行分类存储，并通过 AI Agent 进行 R
 
 ## ✨ 特性
 
-1. **零成本部署**: Vercel + Neon 免费额度完全够个人使用，无需购买服务器
-2. **一键部署**: 几分钟内打造个人收藏系统，部署简单，几乎零配置
+1. **Serverless**: 一条命令部署到 Cloudflare Workers，无需维护服务器
+2. **零成本**: 完全跑在 Cloudflare 免费层（Workers + D1 + Vectorize + R2）
 3. **多端支持**: Web + Mobile + Browser Extension 三端覆盖
 4. **AI 增强**: RAG 和 AI Agent 集成，智能标签和内容总结
-5. **开源免费**: 完全开源，数据完全属于你自己
+5. **CLI 友好**: 官方 CLI 方便与 OpenClaw 等外部 Agent 集成
+6. **开源免费**: 完全开源，数据完全属于你自己
 
 ## 🎨 VIBE CODING
 
@@ -48,34 +49,36 @@ MindPocket 将你的收藏内容进行分类存储，并通过 AI Agent 进行 R
 
 欢迎交流 VIBE Coding 经验！
 
-## 🚀 快速部署
+## 🚀 部署
 
-### 前置要求
+MindPocket 完全运行在 **Cloudflare 免费层** 上——单个 Worker 同时服务静态前端和 API：
 
-- [Vercel 账号](https://vercel.com)（免费）
-- [Neon 账号](https://neon.tech)（免费 PostgreSQL 数据库）
-- 大模型 和 嵌入模型 的 API Key
+| 资源 | 用途 | 免费额度 |
+|------|------|---------|
+| Workers + 静态资产 | Hono API + Next.js 静态导出 | 10 万请求/天 |
+| D1 | 关系数据（SQLite） | 5 GB |
+| Vectorize | 向量检索（替代 pgvector） | 3000 万查询维度/月 |
+| R2 | 文件存储（替代 MinIO） | 10 GB |
 
-### 部署步骤
+### 快速开始
 
-1. **[Fork 本仓库](../../fork)**
-2. **Vercel 链接**
-   - 在 Vercel 仪表盘点击 "New Project" → "Import Git Repository"
-   - 选择你 Fork 的 MindPocket 仓库
-   - 选择 Root Directory `apps/web`
-   - Build Command 保持为 `pnpm build`
-   - 点击 "Deploy"
-   - 在 "Integrations" 选项卡中，添加 Neon 集成，创建一个新的免费数据库实例，并连接到你的项目（Upstash 免费 Redis 也可以添加）
-   - 连接 Vercel Blob 存储
-   - 在 "Settings" → "Environment Variables" 中，添加环境变量（参考 [`apps/web/.env.example`](./apps/web/.env.example)）
+```bash
+# 1. 一次性创建云资源（D1 / Vectorize / R2），详见 docs/CLOUDFLARE.md
+cd apps/api
+pnpm exec wrangler d1 create mindpocket
+pnpm exec wrangler vectorize create mindpocket-embeddings --dimensions=1024 --metric=cosine
+pnpm exec wrangler vectorize create-metadata-index mindpocket-embeddings --property-name=userId --type=string
+pnpm exec wrangler r2 bucket create mindpocket
+pnpm exec wrangler secret put BETTER_AUTH_SECRET
 
-3. **初始化数据库**
-   - 不需要手动执行命令
-   - 构建阶段会自动执行幂等初始化（`CREATE EXTENSION IF NOT EXISTS vector` + `drizzle-kit migrate`）
+# 2. 回填 apps/api/wrangler.jsonc 里的 database_id / R2_PUBLIC_URL / NEXT_PUBLIC_APP_URL
 
-4. **创建管理员账号**
-   - 访问你的部署地址
-   - 注册第一个账号即可开始使用(第一个账号默认管理员账户，注册后关闭注册功能，尽快注册)
+# 3. 应用迁移并部署（仓库根目录）
+pnpm --filter api db:migrate:remote
+pnpm deploy:cf
+```
+
+完整指南（含从旧版自托管 Postgres/MinIO 迁移数据）：[docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md)
 
 ## 💻 本地开发
 
@@ -94,21 +97,17 @@ cd mindpocket
 # 安装依赖
 pnpm install
 
-# 配置环境变量
-cd apps/web
-# 模板文件：apps/web/.env.example
-cp .env.example .env.local
-# 编辑 .env.local 填入你的配置
+# 本地密钥
+echo "BETTER_AUTH_SECRET=dev-secret" > apps/api/.dev.vars
 
-# 初始化数据库
-pnpm db:bootstrap
+# 初始化本地 D1 数据库
+pnpm --filter api db:migrate:local
 
-# 启动开发服务器
-cd ../..
-pnpm dev
+# 启动 API worker（同时服务静态资产 + /api/*）
+pnpm --filter api dev
 ```
 
-访问 http://127.0.0.1:3000 开始使用。
+访问 http://127.0.0.1:8787 开始使用。需要前端热更新时，另开 `pnpm --filter web dev`（http://127.0.0.1:3000）。
 
 ### 开发命令
 
@@ -116,31 +115,69 @@ pnpm dev
 # 根目录
 pnpm dev          # 启动所有应用
 pnpm build        # 构建所有应用
+pnpm deploy:cf    # 构建并部署到 Cloudflare Workers
+pnpm cli:build    # 构建 CLI 包
 pnpm format       # 格式化代码
 pnpm check        # 代码检查
 
-# Web 应用 (apps/web)
-pnpm dev          # 启动 Next.js
-pnpm db:studio    # 数据库管理界面
-pnpm db:generate  # 生成数据库迁移
-pnpm db:migrate   # 运行迁移
+# API (apps/api)
+pnpm dev                 # wrangler dev（本地模拟 D1/R2）
+pnpm db:generate         # 生成迁移
+pnpm db:migrate:local    # 应用迁移到本地 D1
+pnpm db:migrate:remote   # 应用迁移到远程 D1
+pnpm deploy              # wrangler deploy
 
-# Native 应用 (apps/native)
+# Web (apps/web)
+pnpm dev          # 启动 Next.js（纯前端）
+pnpm build        # 静态导出到 apps/web/out
+
+# Native (apps/native)
 pnpm dev          # 启动 Expo
-pnpm android      # Android 运行
-pnpm ios          # iOS 运行
+pnpm android      # 运行 Android
+pnpm ios          # 运行 iOS
+```
+
+## CLI
+
+MindPocket CLI 是官方命令行客户端，适合 Agent、脚本和开发者在终端中与 MindPocket 服务交互。
+
+### 安装
+
+```bash
+npm install -g mindpocket
+```
+
+或者使用 pnpm：
+
+```bash
+pnpm add -g mindpocket
+```
+
+### 快速开始
+
+```bash
+mindpocket --help
+mindpocket config set server https://your-domain.com
+mindpocket auth login
+mindpocket user me
+mindpocket bookmarks list
 ```
 
 ## 🛠 技术栈
 
-### Web 应用
-- **框架**: Next.js 16 (App Router)
+### Web 前端
+- **框架**: Next.js 16 (App Router，静态导出)
 - **UI**: Radix UI + Tailwind CSS 4
-- **认证**: Better Auth
-- **数据库**: PostgreSQL (Neon) + Drizzle ORM
-- **AI**: Vercel AI SDK + OpenAI
 - **状态管理**: Zustand
 - **动画**: Motion (Framer Motion)
+
+### API 后端（Cloudflare Workers）
+- **框架**: Hono
+- **认证**: Better Auth
+- **数据库**: Cloudflare D1 + Drizzle ORM
+- **向量检索**: Cloudflare Vectorize
+- **文件存储**: Cloudflare R2
+- **AI**: Vercel AI SDK（openai-compatible）
 
 ### Mobile 应用
 - **框架**: Expo + React Native

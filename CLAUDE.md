@@ -1,83 +1,26 @@
-# CLAUDE.md
+# AGENT
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-这是一个基于 Turborepo 的 monorepo 项目，包含 Web 和 Native 两个应用，使用 React Native Web 实现跨平台代码共享。
-
-### 项目结构
-
-- **apps/web**: Next.js 16 应用（主要 Web 应用）
-- **apps/native**: Expo/React Native 应用
-- **packages/typescript-config**: 共享的 TypeScript 配置
-- **packages/validators**: 共享的验证逻辑
-
-## Development Commands
-
-### 根目录命令
-
-```bash
-# 启动所有应用的开发服务器
-pnpm dev
-
-# 构建所有应用
-pnpm build
-
-# 代码检查和格式化
-pnpm lint          # 使用 Biome 进行 lint
-pnpm format        # 使用 Biome 格式化代码
-pnpm check         # 使用 Ultracite 检查
-pnpm fix           # 使用 Ultracite 修复
-
-# 清理所有构建产物和 node_modules
-pnpm clean
-```
-
-### Web 应用 (apps/web)
-
-```bash
-cd apps/web
-
-# 开发
-pnpm dev           # 启动 Next.js 开发服务器 (http://localhost:3000)
-pnpm build         # 构建生产版本
-pnpm start         # 启动生产服务器
-
-# 数据库操作
-pnpm db:generate   # 生成 Drizzle 迁移文件
-pnpm db:migrate    # 运行数据库迁移
-pnpm db:push       # 直接推送 schema 到数据库（开发环境）
-pnpm db:studio     # 启动 Drizzle Studio 数据库管理界面
-
-# 创建用户（需要先配置数据库）
-pnpm tsx scripts/create-user.ts <email> <password> [name]
-```
-
-### Native 应用 (apps/native)
-
-```bash
-cd apps/native
-
-pnpm dev           # 启动 Expo 开发服务器
-pnpm android       # 在 Android 上运行
-pnpm ios           # 在 iOS 上运行
-pnpm web           # 在 Web 上运行
-```
+这是一个基于 Turborepo 的 monorepo 项目
 
 ## Architecture
 
 ### Tech Stack
 
-**Web 应用:**
-- **框架**: Next.js 16 (App Router)
+**Web 前端 (apps/web):**
+- **框架**: Next.js 16 (App Router)，`output: "export"` 纯静态导出（无服务端运行时）
 - **UI**: Radix UI + Tailwind CSS 4
-- **认证**: Better Auth (基于 email/password)
-- **数据库**: PostgreSQL + Drizzle ORM (Neon Serverless)
-- **AI**: Vercel AI SDK + OpenAI
 - **状态管理**: Zustand
 - **动画**: Motion (Framer Motion)
 - **其他**: React Native Web (跨平台组件共享)
+
+**API 后端 (apps/api，Cloudflare Workers):**
+- **框架**: Hono
+- **认证**: Better Auth (email/password + 2FA + device authorization)
+- **数据库**: Cloudflare D1 (SQLite) + Drizzle ORM
+- **向量检索**: Cloudflare Vectorize（1024 维 cosine）
+- **文件存储**: Cloudflare R2
+- **AI**: Vercel AI SDK（openai-compatible，用户在设置里自配 provider）
+- **部署**: 单个 Worker 同时服务静态资产（apps/web/out）与 /api/*，见 `docs/CLOUDFLARE.md`
 
 **Native 应用:**
 - **框架**: Expo + React Native
@@ -85,35 +28,24 @@ pnpm web           # 在 Web 上运行
 - **UI**: HeroUI Native + Tailwind (uniwind)
 - **导航**: React Navigation
 
-### 跨平台策略
-
-项目使用 React Native Web 实现代码共享：
-- Next.js 配置了 `react-native` 别名指向 `react-native-web`
-- 支持 `.web.tsx` 扩展名优先级解析
-- 组件可以在 Web 和 Native 之间共享
-
 ### 认证架构
 
 使用 Better Auth 实现认证系统：
-- **服务端**: `apps/web/lib/auth.ts` - Better Auth 配置
+- **服务端**: `apps/api/src/lib/auth.ts` - 每请求工厂 `createAuth(env, db)`（Workers 下 D1 binding 只在请求上下文可用）
 - **客户端**: `apps/web/lib/auth-client.ts` - 客户端 SDK
-- **API 路由**: `apps/web/app/api/auth/[...all]/route.ts` - 认证端点
-- **数据库 Schema**: `apps/web/db/schema/auth.ts` - 用户和账户表
-
-当前启用的认证方式：
-- Email/Password 认证
-- 社交登录（Google、GitHub）已配置但未启用
+- **API 挂载**: `apps/api/src/index.ts` - `/api/auth/*`
+- **数据库 Schema**: `apps/api/db/schema/auth.ts`
 
 ### 数据库架构
 
-- **ORM**: Drizzle ORM
-- **数据库**: PostgreSQL (Neon Serverless)
-- **配置文件**: `apps/web/drizzle.config.ts`
-- **Schema 位置**: `apps/web/db/schema/`
-- **迁移文件**: `apps/web/db/migrations/`
-- **客户端**: `apps/web/db/client.ts`
+- **ORM**: Drizzle ORM（sqlite 方言）
+- **数据库**: Cloudflare D1
+- **配置文件**: `apps/api/drizzle.config.ts`
+- **Schema 位置**: `apps/api/db/schema/`
+- **迁移文件**: `apps/api/db/migrations/`
+- **客户端**: `apps/api/db/client.ts`（`createDb(env.DB)`）；业务代码通过 `apps/api/src/context.ts` 的 AsyncLocalStorage 代理使用模块级 `db`
 
-环境变量需要在 `apps/web/.env.local` 中配置 `DATABASE_URL`。
+本地密钥放 `apps/api/.dev.vars`（`BETTER_AUTH_SECRET`）。
 
 ### UI 组件
 
@@ -136,22 +68,20 @@ pnpm web           # 在 Web 上运行
 
 ### 数据库工作流
 
-1. 修改 schema 文件 (`apps/web/db/schema/`)
-2. 运行 `pnpm db:generate` 生成迁移
-3. 运行 `pnpm db:migrate` 应用迁移（生产环境）
-4. 或运行 `pnpm db:push` 直接推送（开发环境）
+1. 修改 schema 文件 (`apps/api/db/schema/`)
+2. 在 `apps/api` 运行 `pnpm db:generate` 生成迁移
+3. 运行 `pnpm db:migrate:local` 应用到本地 D1（开发）
+4. 运行 `pnpm db:migrate:remote` 应用到远程 D1（生产）
 
 ### 创建新用户
 
-由于认证系统需要密码哈希，不能直接在数据库中创建用户。使用提供的脚本：
+注册在首个用户创建后自动关闭。新环境直接通过 `/signup` 页面或
+`POST /api/auth/sign-up/email` 注册第一个用户即可。
 
-```bash
-cd apps/web
-pnpm tsx scripts/create-user.ts your@email.com yourpassword "Your Name"
-```
+### 部署
 
-
-最新版 nextjs 的 middleware 改名 proxy.ts ，请注意区分
+`pnpm deploy:cf` 一键构建并部署到 Cloudflare Workers，完整流程见 `docs/CLOUDFLARE.md`。
+前端是纯静态导出（无 middleware/proxy），登录保护由客户端守卫 + API 层鉴权（`apps/api/src/middleware.ts`）完成。
 
 
 ### Turbo 缓存
@@ -160,14 +90,23 @@ Turborepo 会缓存构建结果以加速后续构建。如果遇到缓存问题�
 - 删除 `.turbo` 目录
 - 运行 `pnpm clean` 清理所有缓存
 
-完成一段任务 在项目根目录运行：
-```bash
-先pnpm format
-后pnpm check
-``` 
+完成任务后，需要检查代码和格式化
+
+
+# 注意
+
+写代码要求有简单注释
+
+
+完成一个任务后需要进行，代码检查和格式化
+pnpm lint          # 使用 Biome 进行 lint
+pnpm format        # 使用 Biome 格式化代码
+pnpm check         # 使用 Ultracite 检查
+pnpm fix           # 使用 Ultracite 修复
+
 以确保代码质量。
 
-
+做完后使用 chrome dev tool mcp 测试界面是否符合预期
 
 ## 参考
-./PROJECT.md
+./docs/PROJECT.md

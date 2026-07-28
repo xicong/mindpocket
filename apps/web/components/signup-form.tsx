@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AuthBrandDisplay } from "@/components/auth-brand-display"
@@ -11,10 +11,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { signUp } from "@/lib/auth-client"
+import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export function SignupForm({ className, ...props }: React.ComponentProps<"div">) {
+  const t = useT()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -22,6 +25,10 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
   const [checkingRegistration, setCheckingRegistration] = useState(true)
   const [registrationAllowed, setRegistrationAllowed] = useState(true)
   const [registrationMessage, setRegistrationMessage] = useState<string | null>(null)
+  const redirectTarget = searchParams.get("redirect")
+  const registrationCheckFailedMessage = t.auth.registrationCheckFailed
+  const nextPath =
+    redirectTarget?.startsWith("/") && !redirectTarget.startsWith("//") ? redirectTarget : "/"
 
   useEffect(() => {
     // Check if registration is allowed
@@ -33,20 +40,20 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
         setRegistrationMessage(data.message)
       } catch (error) {
         console.error("Failed to check registration status:", error)
-        toast.error("无法检查注册状态")
+        toast.error(registrationCheckFailedMessage)
       } finally {
         setCheckingRegistration(false)
       }
     }
 
     checkRegistration()
-  }, [])
+  }, [registrationCheckFailedMessage])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!registrationAllowed) {
-      toast.error("注册已关闭")
+      toast.error(t.auth.registrationClosed)
       return
     }
 
@@ -58,11 +65,11 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
         onRequest: () => setLoading(true),
         onResponse: () => setLoading(false),
         onError: (ctx) => {
-          toast.error(ctx.error.message || "注册失败，请重试")
+          toast.error(ctx.error.message || t.auth.signupFailed)
         },
         onSuccess: () => {
-          toast.success("注册成功")
-          router.push("/")
+          toast.success(t.auth.signupSuccess)
+          router.push(nextPath)
         },
       },
     })
@@ -90,8 +97,8 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
           <form className="p-6 md:p-8" onSubmit={handleSubmit}>
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
-                <h1 className="font-bold text-2xl">创建账户</h1>
-                <p className="text-balance text-muted-foreground">注册 MindPocket</p>
+                <h1 className="font-bold text-2xl">{t.auth.signupTitle}</h1>
+                <p className="text-balance text-muted-foreground">{t.auth.signupSubtitle}</p>
               </div>
 
               {!registrationAllowed && registrationMessage && (
@@ -99,27 +106,27 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
                   <p className="font-medium">{registrationMessage}</p>
                   <Link
                     className="mt-2 inline-block text-sm underline underline-offset-4 hover:text-destructive/80"
-                    href="/login"
+                    href={`/login${nextPath === "/" ? "" : `?redirect=${encodeURIComponent(nextPath)}`}`}
                   >
-                    返回登录
+                    {t.auth.backToLogin}
                   </Link>
                 </div>
               )}
 
               <Field>
-                <FieldLabel htmlFor="name">姓名</FieldLabel>
+                <FieldLabel htmlFor="name">{t.auth.name}</FieldLabel>
                 <Input
                   disabled={loading || !registrationAllowed}
                   id="name"
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="张三"
+                  placeholder={t.auth.namePlaceholder}
                   required
                   type="text"
                   value={name}
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <FieldLabel htmlFor="email">{t.auth.email}</FieldLabel>
                 <Input
                   disabled={loading || !registrationAllowed}
                   id="email"
@@ -131,7 +138,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="password">密码</FieldLabel>
+                <FieldLabel htmlFor="password">{t.auth.password}</FieldLabel>
                 <Input
                   disabled={loading || !registrationAllowed}
                   id="password"
@@ -143,7 +150,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
               </Field>
               <Field>
                 <Button className="w-full" disabled={loading || !registrationAllowed} type="submit">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "注册"}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signupButton}
                 </Button>
               </Field>
             </FieldGroup>

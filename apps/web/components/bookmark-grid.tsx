@@ -32,21 +32,6 @@ import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { useBookmarkStore, useUIStore } from "@/stores"
 
-const typeFilters = [
-  { value: "all", label: "全部", icon: null },
-  { value: "link", label: "链接", icon: Link2 },
-  { value: "article", label: "文章", icon: FileText },
-  { value: "video", label: "视频", icon: Video },
-  { value: "image", label: "图片", icon: Image },
-] as const
-
-const platformFilters = [
-  { value: "all", label: "全部" },
-  { value: "wechat", label: "微信" },
-  { value: "xiaohongshu", label: "小红书" },
-  { value: "bilibili", label: "哔哩哔哩" },
-] as const
-
 const LIST_SKELETON_KEYS = [
   "list-skeleton-1",
   "list-skeleton-2",
@@ -67,6 +52,7 @@ const GRID_SKELETON_KEYS = [
 ]
 
 export function BookmarkGrid({ refreshKey, folderId }: { refreshKey?: number; folderId?: string }) {
+  const t = useT()
   const { bookmarks, filters, pagination, isLoading, isLoadingMore, fetchBookmarks, setFilters } =
     useBookmarkStore()
   const { bookmarkViewMode, setBookmarkViewMode } = useUIStore()
@@ -110,7 +96,7 @@ export function BookmarkGrid({ refreshKey, folderId }: { refreshKey?: number; fo
             <div className="flex justify-center py-4">
               <Button disabled={isLoadingMore} onClick={handleLoadMore} variant="outline">
                 {isLoadingMore && <Loader2 className="mr-2 size-4 animate-spin" />}
-                加载更多
+                {t.bookmarkList.loadMore}
               </Button>
             </div>
           )}
@@ -137,6 +123,23 @@ function FilterBar({
   setViewMode: (mode: ViewMode) => void
   total: number
 }) {
+  const t = useT()
+  const typeFilters = [
+    { value: "all", label: t.bookmarkList.typeAll, icon: null },
+    { value: "link", label: t.bookmarkList.typeLink, icon: Link2 },
+    { value: "article", label: t.bookmarkList.typeArticle, icon: FileText },
+    { value: "video", label: t.bookmarkList.typeVideo, icon: Video },
+    { value: "image", label: t.bookmarkList.typeImage, icon: Image },
+  ] as const
+  const platformFilters = [
+    { value: "all", label: t.bookmarkList.platformAll },
+    { value: "wechat", label: t.bookmarkList.platformWechat },
+    { value: "xiaohongshu", label: t.bookmarkList.platformXiaohongshu },
+    { value: "bilibili", label: t.bookmarkList.platformBilibili },
+    { value: "twitter", label: t.bookmarkList.platformTwitter },
+    { value: "zhihu", label: t.bookmarkList.platformZhihu },
+  ] as const
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -156,7 +159,9 @@ function FilterBar({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">{total} 条收藏</span>
+          <span className="text-muted-foreground text-xs">
+            {t.bookmarkList.totalCount.replace("{count}", String(total))}
+          </span>
           <div className="flex items-center rounded-md border">
             <Button
               className="size-8 rounded-r-none"
@@ -180,7 +185,7 @@ function FilterBar({
 
       <div className="flex items-center gap-1">
         {platformFilters.map((filter) => {
-          const config = filter.value !== "all" ? PLATFORM_CONFIG[filter.value] : null
+          const config = filter.value === "all" ? null : PLATFORM_CONFIG[filter.value]
           const Icon = config?.icon
           return (
             <Button
@@ -212,7 +217,7 @@ function BookmarkList({ bookmarks, viewMode }: { bookmarks: BookmarkItem[]; view
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {bookmarks.map((item) => (
         <BookmarkCard item={item} key={item.id} />
       ))}
@@ -243,7 +248,7 @@ function BookmarkListItem({ item }: { item: BookmarkItem }) {
   return (
     <>
       <div className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50">
-        <Link className="flex min-w-0 flex-1 items-center gap-3" href={`/bookmark/${item.id}`}>
+        <Link className="flex min-w-0 flex-1 items-center gap-3" href={`/bookmark?id=${item.id}`}>
           <TypeIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
           {item.folderName && (
@@ -320,12 +325,12 @@ function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {GRID_SKELETON_KEYS.map((key) => (
         <div className="flex flex-col gap-2" key={key}>
-          <Skeleton className="aspect-[16/9] w-full rounded-xl" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="aspect-[1.18] w-full rounded-2xl" />
+          <Skeleton className="h-5 w-4/5 rounded-full" />
+          <Skeleton className="h-4 w-3/5 rounded-full" />
         </div>
       ))}
     </div>
@@ -333,12 +338,13 @@ function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
 }
 
 function EmptyState() {
+  const t = useT()
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20">
       <Package className="size-12 text-muted-foreground/40" />
       <div className="text-center">
-        <p className="font-medium text-muted-foreground">还没有任何收藏</p>
-        <p className="mt-1 text-muted-foreground/60 text-sm">开始收藏你喜欢的内容吧</p>
+        <p className="font-medium text-muted-foreground">{t.bookmarkList.emptyTitle}</p>
+        <p className="mt-1 text-muted-foreground/60 text-sm">{t.bookmarkList.emptyDescription}</p>
       </div>
     </div>
   )

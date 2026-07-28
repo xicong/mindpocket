@@ -24,13 +24,22 @@ export type SourceType = (typeof SOURCE_TYPES)[number]
 /**
  * Client source for bookmarks
  */
-export const CLIENT_SOURCES = ["web", "mobile", "extension"] as const
+export const CLIENT_SOURCES = ["web", "mobile", "extension", "cli"] as const
 export type ClientSource = (typeof CLIENT_SOURCES)[number]
 
 /**
  * Ingest status for bookmarks
  */
-export const INGEST_STATUSES = ["pending", "processing", "completed", "failed"] as const
+export const INGEST_STATUSES = [
+  "pending",
+  "processing",
+  // 服务端抓取失败，等待浏览器扩展抓取
+  "pending_browser",
+  // 已被浏览器扩展认领，抓取中
+  "processing_browser",
+  "completed",
+  "failed",
+] as const
 export type IngestStatus = (typeof INGEST_STATUSES)[number]
 
 /**

@@ -30,11 +30,12 @@ MindPocket organizes your bookmarks with AI-powered RAG content summarization an
 
 ## ✨ Features
 
-1. **Zero Cost**: Vercel + Neon free tier is enough for personal use
-2. **One-Click Deploy**: Set up your personal bookmark system in minutes
+1. **Serverless**: One-command deploy to Cloudflare Workers, no server to maintain
+2. **Zero Cost**: Runs entirely on the Cloudflare free tier (Workers + D1 + Vectorize + R2)
 3. **Multi-Platform**: Web + Mobile + Browser Extension
 4. **AI Enhanced**: RAG and AI Agent for smart tagging and summarization
-5. **Open Source**: Fully open source, your data belongs to you
+5. **CLI Ready**: Official CLI makes it easy to integrate with external agents like OpenClaw
+6. **Open Source**: Fully open source, your data belongs to you
 
 ## 🎨 VIBE CODING
 
@@ -46,34 +47,36 @@ This is a pure **VIBE CODING** project:
 - VIBE Coding write-up (CN): [How I VIBE CODED this project](./docs/vibe-coding.md)
 - VIBE Coding PRs are welcome!!!
 
-## 🚀 Quick Deploy
+## 🚀 Deploy
 
-### Prerequisites
+MindPocket runs entirely on the **Cloudflare free tier** — a single Worker serves both the static frontend and the API:
 
-- [Vercel Account](https://vercel.com) (Free)
-- [Neon Account](https://neon.tech) (Free PostgreSQL)
-- LLM and Embedding Model API Key
+| Resource | Role | Free tier |
+|----------|------|-----------|
+| Workers + Static Assets | Hono API + Next.js static export | 100k requests/day |
+| D1 | Relational data (SQLite) | 5 GB |
+| Vectorize | Vector search (replaces pgvector) | 30M queried dims/month |
+| R2 | File storage (replaces MinIO) | 10 GB |
 
-### Deploy Steps
+### Quick start
 
-1. **[Fork this repository](../../fork)**
-2. **Connect to Vercel**
-   - Click "New Project" → "Import Git Repository" in Vercel dashboard
-   - Select your forked MindPocket repository
-   - Set Root Directory to `apps/web`
-   - Keep Build Command as `pnpm build`
-   - Click "Deploy"
-   - In "Integrations" tab, add Neon integration and create a free database instance
-   - Connect Vercel Blob storage
-   - Add environment variables in "Settings" → "Environment Variables" (refer to `apps/web/.env.example`)
+```bash
+# 1. One-time resource setup (D1 / Vectorize / R2), see docs/CLOUDFLARE.md
+cd apps/api
+pnpm exec wrangler d1 create mindpocket
+pnpm exec wrangler vectorize create mindpocket-embeddings --dimensions=1024 --metric=cosine
+pnpm exec wrangler vectorize create-metadata-index mindpocket-embeddings --property-name=userId --type=string
+pnpm exec wrangler r2 bucket create mindpocket
+pnpm exec wrangler secret put BETTER_AUTH_SECRET
 
-3. **Initialize Database**
-   - No manual action required
-   - During build, the app runs an idempotent bootstrap (`CREATE EXTENSION IF NOT EXISTS vector` + `drizzle-kit migrate`)
+# 2. Fill database_id / R2_PUBLIC_URL / NEXT_PUBLIC_APP_URL in apps/api/wrangler.jsonc
 
-4. **Create Admin Account**
-   - Visit your deployment URL
-   - Register your first account to start using
+# 3. Apply migrations & deploy (from repo root)
+pnpm --filter api db:migrate:remote
+pnpm deploy:cf
+```
+
+Full guide (including migrating data from a previous self-hosted Postgres/MinIO setup): [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md)
 
 ## 💻 Local Development
 
@@ -92,20 +95,17 @@ cd mindpocket
 # Install dependencies
 pnpm install
 
-# Configure environment
-cd apps/web
-cp .env.example .env.local
-# Edit .env.local with your configuration
+# Local secrets
+echo "BETTER_AUTH_SECRET=dev-secret" > apps/api/.dev.vars
 
-# Initialize database
-pnpm db:bootstrap
+# Initialize local D1 database
+pnpm --filter api db:migrate:local
 
-# Start development server
-cd ../..
-pnpm dev
+# Start the API worker (serves static assets + /api/*)
+pnpm --filter api dev
 ```
 
-Visit http://127.0.0.1:3000 to start using.
+Visit http://127.0.0.1:8787 to start using. For frontend hot-reload development, additionally run `pnpm --filter web dev` (http://127.0.0.1:3000).
 
 ### Commands
 
@@ -113,14 +113,22 @@ Visit http://127.0.0.1:3000 to start using.
 # Root
 pnpm dev          # Start all apps
 pnpm build        # Build all apps
+pnpm deploy:cf    # Build & deploy to Cloudflare Workers
+pnpm cli:build    # Build the CLI package
+pnpm cli:pack     # Preview the npm package contents for the CLI
 pnpm format       # Format code
 pnpm check        # Code check
 
+# API (apps/api)
+pnpm dev                 # wrangler dev (local D1/R2 simulation)
+pnpm db:generate         # Generate migrations
+pnpm db:migrate:local    # Apply migrations to local D1
+pnpm db:migrate:remote   # Apply migrations to remote D1
+pnpm deploy              # wrangler deploy
+
 # Web (apps/web)
-pnpm dev          # Start Next.js
-pnpm db:studio    # Database UI
-pnpm db:generate  # Generate migrations
-pnpm db:migrate   # Run migrations
+pnpm dev          # Start Next.js (frontend only)
+pnpm build        # Static export to apps/web/out
 
 # Native (apps/native)
 pnpm dev          # Start Expo
@@ -128,11 +136,75 @@ pnpm android      # Run on Android
 pnpm ios          # Run on iOS
 ```
 
+## CLI
+
+MindPocket CLI is the official command line client for agents, scripts, and developers who want to interact with a MindPocket server from the terminal.
+
+### Install
+
+```bash
+npm install -g mindpocket
+```
+
+Or with pnpm:
+
+```bash
+pnpm add -g mindpocket
+```
+
+### Quick Start
+
+```bash
+mindpocket version
+mindpocket schema
+mindpocket doctor
+mindpocket --help
+mindpocket config set server https://your-domain.com
+mindpocket auth login
+mindpocket user me
+mindpocket bookmarks list
+```
+
+Recommended agent flow:
+
+```bash
+mindpocket version
+mindpocket schema
+mindpocket doctor
+mindpocket auth login --no-open
+```
+
+### Agent Skill
+
+MindPocket also ships a repository-scoped agent skill named `mindpocket`. The skill teaches compatible agents to discover commands with `schema`, verify readiness with `doctor`, configure the server, handle auth safely, and operate bookmark and folder workflows through the published CLI.
+
+Install it with `skills.sh` from this repository:
+
+```bash
+npx skills add https://github.com/jihe520/mindpocket --skill mindpocket
+```
+
+For local testing from a checkout:
+
+```bash
+npx skills add ./skills/mindpocket
+```
+
+The skill is procedural guidance layered on top of the npm CLI, so users still need the `mindpocket` command available locally.
+
+Example prompts:
+
+```text
+Use the `mindpocket` skill to list my latest 10 bookmarks.
+Use the `mindpocket` skill to help me configure my server and log in.
+```
+
 ## 🛠 Tech Stack
 
 | Category | Technologies |
 |----------|-------------|
-| **Web** | Next.js 16, Radix UI, Tailwind CSS 4, Better Auth, Drizzle ORM, Vercel AI SDK, Zustand |
+| **Web** | Next.js 16 (static export), Radix UI, Tailwind CSS 4, Zustand |
+| **API** | Cloudflare Workers, Hono, Better Auth, Drizzle ORM (D1), Vectorize, R2, Vercel AI SDK |
 | **Mobile** | Expo, React Native, Expo Router |
 | **Extension** | WXT, Vite |
 | **Tooling** | Turborepo, pnpm, Biome, Ultracite |

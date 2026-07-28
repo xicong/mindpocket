@@ -27,17 +27,22 @@ import { useT } from "@/lib/i18n"
 
 export function NavUser({
   user,
+  idBase = "nav-user",
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
+  idBase?: string
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
   const t = useT()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Use stable ids to avoid Radix trigger hydration mismatches on SSR.
+  const triggerId = `${idBase}-trigger`
+  const contentId = `${idBase}-content`
 
   return (
     <>
@@ -47,6 +52,7 @@ export function NavUser({
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                id={triggerId}
                 size="lg"
               >
                 <Avatar className="h-8 w-8 rounded-lg">
@@ -63,6 +69,7 @@ export function NavUser({
             <DropdownMenuContent
               align="start"
               className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+              id={contentId}
               side={isMobile ? "bottom" : "right"}
               sideOffset={4}
             >
@@ -102,7 +109,7 @@ export function NavUser({
                     router.push("/login")
                     router.refresh()
                   } catch {
-                    toast.error("退出失败，请稍后重试")
+                    toast.error(t.feedback.logoutFailed)
                   }
                 }}
               >
